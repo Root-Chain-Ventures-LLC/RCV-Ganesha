@@ -1,0 +1,73 @@
+# Ganesha: the application plus its own Postgres, one host.
+#
+#   ./install.sh                 # recommended: writes .env, pulls, starts, waits for health
+#   docker compose up -d         # by hand, once .env exists (see .env.example)
+#
+# Needs Docker Compose v2.24 or newer (the optional `env_file` form below).
+services:
+  db:
+    image: postgres:17-bookworm
+    container_name: ganesha-db
+    environment:
+      POSTGRES_USER: ganesha
+      POSTGRES_DB: ganesha
+      POSTGRES_PASSWORD: ${GANESHA_DB_PASSWORD:?set GANESHA_DB_PASSWORD in .env}
+    volumes:
+      - ganesha-pg:/var/lib/postgresql/data
+    # Loopback only: the app reaches the database over the compose network (service name
+    # `db`); this published port exists for backups and troubleshooting from the host. A
+    # non-default port (5434) avoids clashing with a Postgres already running on the host.
+    ports:
+      - "127.0.0.1:${GANESHA_DB_PORT:-5434}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ganesha -d ganesha"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    image: ghcr.io/root-chain-ventures-llc/ganesha:${GANESHA_VERSION:-0.1.0}
+    container_name: ganesha-app
+    depends_on:
+      db:
+        condition: service_healthy
+    # Everything in .env reaches the container this way, including GANESHA_SECRET_KEY.
+    # The image itself contains no secrets.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PORT: 8080
+      HOST: 0.0.0.0
+      DATABASE_URL: postgres://ganesha:${GANESHA_DB_PASSWORD}@db:5432/ganesha
+      DATA_DIR: /data
+      # Scratch/cache directory for PDF rendering; the root filesystem is read-only, so it
+      # lives on the tmpfs below.
+      XDG_CACHE_HOME: /tmp/.cache
+    # Host interface and port are your choice. Behind a reverse proxy on the same host set
+    # GANESHA_BIND=127.0.0.1 so the app is not also reachable straight from the network (a
+    # direct client would skip the proxy's TLS, authentication and rate limits). The
+    # container always listens on 8080.
+    ports:
+      - "${GANESHA_BIND:-0.0.0.0}:${GANESHA_PORT:-8080}:8080"
+    volumes:
+      - ganesha-data:/data
+    # Hardening: /app is root-owned and the root filesystem is read-only, so a compromised
+    # process cannot rewrite the application. The only writable places are the /data volume
+    # (uploads, branding, attachments) and /tmp. The image also carries its own healthcheck
+    # (/api/health).
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777,noexec,nosuid
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${GANESHA_MEM_LIMIT:-1g}
+    pids_limit: ${GANESHA_PIDS_LIMIT:-256}
+    restart: unless-stopped
+
+volumes:
+  ganesha-data:
+  ganesha-pg:

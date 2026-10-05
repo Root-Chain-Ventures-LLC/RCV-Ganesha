@@ -1,0 +1,8 @@
+# `kubectl apply -k deploy/k8s` (or `kustomize build deploy/k8s`) is a thin pointer at
+# base/, which holds the single-replica manifests. See base/kustomization.yaml for what that
+# deploys, and overlays/ha/ for the 3-node HA choice. README.md in this directory explains
+# both shapes.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - base

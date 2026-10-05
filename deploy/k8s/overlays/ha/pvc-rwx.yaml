@@ -1,0 +1,19 @@
+# Strategic-merge patch over base/pvc.yaml. base/pvc.yaml is ReadWriteOnce because the
+# single-replica shape has exactly one pod writing DATA_DIR. Running 3 replicas means 3 pods
+# need to read and write the same synced photos / attachments / pending smart-upload files
+# at once, so the volume itself has to support that:
+#
+#   - storageClassName providing ReadWriteMany: NFS (in-cluster nfs-subdir-external-
+#     provisioner or an external NFS server), CephFS (Rook-Ceph's `csi-cephfs`), or
+#     Longhorn with `shareManager` RWX volumes. A plain ReadWriteOnce class (most default
+#     cloud-provider block storage: EBS gp2/gp3, most default local-path provisioners) does
+#     NOT support this — check `kubectl get storageclass` and the provisioner's own docs
+#     before applying this overlay, not after a pod fails to schedule.
+#   - Object storage is not implemented: Ganesha writes DATA_DIR as plain files, so a
+#     ReadWriteMany filesystem volume is the way to run more than one replica.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ganesha-data
+spec:
+  accessModes: [ReadWriteMany]

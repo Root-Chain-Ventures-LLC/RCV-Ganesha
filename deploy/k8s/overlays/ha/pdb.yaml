@@ -1,0 +1,18 @@
+# New resource (base has none — a PDB on a single-replica Deployment would only ever block
+# its own only pod from ever draining). `minAvailable: 2` of 3 replicas means a voluntary
+# disruption (node drain, cluster autoscaler scale-down, `kubectl drain`) can take at most one
+# pod at a time; Kubernetes blocks an eviction that would go below 2. It does not protect
+# against an involuntary disruption (a node dying outright) — that's what
+# topologySpreadConstraints in deployment-ha.yaml is for, by keeping the 3 pods off the same
+# node in the first place.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ganesha
+  labels:
+    app.kubernetes.io/name: ganesha
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ganesha

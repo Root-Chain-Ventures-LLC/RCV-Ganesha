@@ -1,0 +1,41 @@
+# Strategic-merge patch over base/deployment.yaml. The base's `strategy: Recreate` exists
+# only because one replica writes `DATA_DIR` onto a ReadWriteOnce PVC with no second writer
+# to coordinate with — see base/deployment.yaml's comment. This overlay's pvc-rwx.yaml patch
+# removes that constraint (ReadWriteMany), so a RollingUpdate is safe here: old and new pods
+# can both hold the volume open while the rollout proceeds. `maxUnavailable: 0` means the
+# rollout never drops below 3 ready pods; `maxSurge: 1` adds one extra pod at a time rather
+# than replacing all 3 at once.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ganesha
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    spec:
+      # Spread the 3 pods across 3 different nodes rather than letting the scheduler stack
+      # them on one. Pairs with the PodDisruptionBudget (pdb.yaml): a single node going down
+      # should cost at most one pod, not two or three.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: ganesha
+      # Clusters with fewer than 3 worker nodes can't satisfy DoNotSchedule above — the pods
+      # would stay Pending forever instead of just double-booking a node. Swap to this
+      # best-effort version instead (pods still schedule, just without the hard guarantee):
+      #
+      # topologySpreadConstraints:
+      #   - maxSkew: 1
+      #     topologyKey: kubernetes.io/hostname
+      #     whenUnsatisfiable: ScheduleAnyway
+      #     labelSelector:
+      #       matchLabels:
+      #         app.kubernetes.io/name: ganesha

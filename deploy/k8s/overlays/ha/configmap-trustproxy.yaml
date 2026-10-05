@@ -1,0 +1,15 @@
+# Strategic-merge patch over base/configmap.yaml. base already ships TRUST_PROXY: "1"
+# (a hop count: trust exactly the ingress; Ganesha's ingress always terminates TLS and talks
+# plain HTTP to the pod — see base/ingress.yaml), so this patch is a no-op value change. Raise it to "2" if a cloud load balancer sits in front
+# of the ingress controller, or use a CIDR list for the ingress/LB addresses. It's kept here,
+# explicit, because at 3 replicas the stakes are different: every pod must trust `X-Forwarded-*` from your ingress/load balancer specifically, not from a peer
+# pod or any other hop — don't put a second internal proxy between the ingress and the Service
+# that could inject its own `X-Forwarded-For`/`X-Forwarded-Proto` ahead of the real one. If a
+# future base change ever flips this back to "false" by mistake, the HA overlay still ships
+# with it correctly on.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ganesha
+data:
+  TRUST_PROXY: "1"

@@ -1,0 +1,205 @@
+name: publish
+
+# Publishes a Ganesha release for users. The image is BUILT in the private source repository,
+# which pushes it to a private staging name and dispatches `publish-release` here with the
+# version and the exact digest. This workflow copies that digest to the public name — so
+# the package is created by and linked to THIS repository — cuts the Release with the
+# install artifacts, and refuses to succeed unless the image can be pulled anonymously.
+#
+# Secrets:
+#   GHCR_READ_TOKEN  — can read the private staging package. GITHUB_TOKEN cannot: a package
+#                      is readable only by the repository it is linked to.
+#   GITHUB_TOKEN     — writes the public package and the Release (permissions below).
+#
+# Re-run by hand with the workflow_dispatch inputs if a dispatch was missed.
+
+on:
+  repository_dispatch:
+    types: [publish-release]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish, e.g. 0.2.0 (no leading v)'
+        required: true
+      digest:
+        description: 'Digest of the staging image, sha256:…'
+        required: true
+      prerelease:
+        description: 'Prerelease (does not move :latest)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-${{ github.event.client_payload.version || github.event.inputs.version }}
+  cancel-in-progress: false
+
+env:
+  STAGING_IMAGE: ghcr.io/root-chain-ventures-llc/ganesha-build
+  PUBLIC_IMAGE: ghcr.io/root-chain-ventures-llc/ganesha
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve and validate the inputs
+        id: in
+        env:
+          VERSION: ${{ github.event.client_payload.version || github.event.inputs.version }}
+          DIGEST: ${{ github.event.client_payload.digest || github.event.inputs.digest }}
+          PRERELEASE: ${{ github.event.client_payload.prerelease || github.event.inputs.prerelease || 'false' }}
+          SOURCE_SHA: ${{ github.event.client_payload.source_sha }}
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$'; then
+            echo "::error::version '$VERSION' is not a plain semantic version (no leading v)"; exit 1
+          fi
+          if ! printf '%s' "$DIGEST" | grep -Eq '^sha256:[0-9a-f]{64}$'; then
+            echo "::error::digest '$DIGEST' is not sha256:<64 hex>"; exit 1
+          fi
+          case "$PRERELEASE" in true|false) ;; *) echo "::error::prerelease must be true or false"; exit 1 ;; esac
+          if [ -z "$GHCR_READ_TOKEN" ]; then
+            echo "::error::repository secret GHCR_READ_TOKEN is not set — cannot read the staging image"; exit 1
+          fi
+          {
+            echo "version=$VERSION"
+            echo "digest=$DIGEST"
+            echo "prerelease=$PRERELEASE"
+            echo "tag=v$VERSION"
+          } >> "$GITHUB_OUTPUT"
+          echo "Publishing $VERSION from $STAGING_IMAGE@$DIGEST (prerelease=$PRERELEASE, source ${SOURCE_SHA:-unknown})"
+
+      - name: Install skopeo
+        run: |
+          set -euo pipefail
+          if ! command -v skopeo >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq skopeo
+          fi
+          skopeo --version
+
+      - name: Copy the image by digest to the public name
+        # Two credentials against one registry: the read token can see the private staging
+        # package, GITHUB_TOKEN owns the public one. --preserve-digests makes skopeo fail
+        # rather than rewrite the manifest, so what users pull is byte-for-byte what the
+        # private build produced.
+        env:
+          SRC_CREDS: x:${{ secrets.GHCR_READ_TOKEN }}
+          DST_CREDS: ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.in.outputs.version }}
+          DIGEST: ${{ steps.in.outputs.digest }}
+          PRERELEASE: ${{ steps.in.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          skopeo copy --all --preserve-digests \
+            --src-creds "$SRC_CREDS" --dest-creds "$DST_CREDS" \
+            "docker://$STAGING_IMAGE@$DIGEST" "docker://$PUBLIC_IMAGE:$VERSION"
+          if [ "$PRERELEASE" = "false" ]; then
+            skopeo copy --all --preserve-digests \
+              --src-creds "$DST_CREDS" --dest-creds "$DST_CREDS" \
+              "docker://$PUBLIC_IMAGE@$DIGEST" "docker://$PUBLIC_IMAGE:latest"
+          fi
+
+      - name: Verify the image pulls anonymously and matches the digest
+        # This is the whole point of publishing from here. No credentials of any kind: if
+        # the package came out private, or the copy changed the digest, the release fails
+        # now instead of being discovered by the first user.
+        env:
+          VERSION: ${{ steps.in.outputs.version }}
+          DIGEST: ${{ steps.in.outputs.digest }}
+          PRERELEASE: ${{ steps.in.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          repo="${PUBLIC_IMAGE#ghcr.io/}"
+          resp=$(curl -sS "https://ghcr.io/token?scope=repository:$repo:pull&service=ghcr.io")
+          token=$(printf '%s' "$resp" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("token",""))' 2>/dev/null || true)
+          if [ -z "$token" ]; then
+            echo "::error::anonymous registry token request was refused — the package is not public. Response: $resp"
+            echo "::error::Fix: github.com/orgs/Root-Chain-Ventures-LLC/packages/container/package/ganesha → Package settings → Change visibility → Public, then re-run this workflow."
+            exit 1
+          fi
+          check() {
+            local tag="$1"
+            local got
+            got=$(curl -sS -o /dev/null -D - \
+              -H "Authorization: Bearer $token" \
+              -H 'Accept: application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json' \
+              "https://ghcr.io/v2/$repo/manifests/$tag" \
+              | tr -d '\r' | awk -F': ' 'tolower($1)=="docker-content-digest" {print $2}')
+            if [ "$got" != "$DIGEST" ]; then
+              echo "::error::$PUBLIC_IMAGE:$tag resolves to '${got:-nothing}', expected $DIGEST"
+              exit 1
+            fi
+            echo "$PUBLIC_IMAGE:$tag -> $got (anonymous, matches)"
+          }
+          check "$VERSION"
+          if [ "$PRERELEASE" = "false" ]; then
+            check latest
+          fi
+
+      - name: Assemble the release notes and install artifacts
+        env:
+          VERSION: ${{ steps.in.outputs.version }}
+          DIGEST: ${{ steps.in.outputs.digest }}
+        run: |
+          set -euo pipefail
+          # The CHANGELOG in this repo is the public record; its "## [<version>]" section is
+          # the release note. A missing section is a warning, not a failure — the image is
+          # already verified and a release with thin notes beats no release.
+          awk -v v="## [$VERSION]" 'index($0, v)==1 {found=1; next} found && /^## \[/ {exit} found' CHANGELOG.md \
+            | sed -E '/^\[[^]]+\]: https?:/d' > release-notes.md || true
+          if [ ! -s release-notes.md ]; then
+            echo "::warning::CHANGELOG.md has no '## [$VERSION]' section; using a stock note"
+            echo "Ganesha $VERSION." > release-notes.md
+          fi
+          {
+            echo
+            echo '## Install'
+            echo
+            echo 'Docker Compose: clone this repository and run `./install.sh`, or pin this version with'
+            echo "\`GANESHA_VERSION=$VERSION\` in \`.env\`. Kubernetes: apply \`deploy/k8s/\` (attached below as a tarball)."
+            echo
+            echo '## Image'
+            echo
+            echo '```'
+            echo "docker pull $PUBLIC_IMAGE:$VERSION"
+            echo '```'
+            echo
+            echo "Digest: \`$DIGEST\` — verified pullable without credentials by this workflow run."
+          } >> release-notes.md
+          mkdir -p dist
+          cp docker-compose.yml install.sh .env.example dist/
+          tar -czf "dist/deploy-k8s-$VERSION.tar.gz" deploy/k8s
+          ls -l dist
+
+      - name: Cut the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.in.outputs.tag }}
+          VERSION: ${{ steps.in.outputs.version }}
+          PRERELEASE: ${{ steps.in.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          flags=()
+          if [ "$PRERELEASE" = "true" ]; then
+            flags+=(--prerelease)
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "Ganesha $VERSION" --notes-file release-notes.md ${flags[@]+"${flags[@]}"}
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* \
+              --target "$GITHUB_SHA" \
+              --title "Ganesha $VERSION" \
+              --notes-file release-notes.md \
+              ${flags[@]+"${flags[@]}"}
+          fi
+          echo "Released $TAG: $(gh release view "$TAG" --json url -q .url)"

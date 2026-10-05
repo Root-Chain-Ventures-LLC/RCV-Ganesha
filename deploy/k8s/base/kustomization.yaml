@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ganesha
+
+# secret.example.yaml is deliberately not listed: create the real Secret out of band so no
+# credential ever lives in this repo.
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/name: ganesha
+      app.kubernetes.io/part-of: ganesha

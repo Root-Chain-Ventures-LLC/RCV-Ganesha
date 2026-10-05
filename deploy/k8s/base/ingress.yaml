@@ -1,0 +1,32 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ganesha
+  labels:
+    app.kubernetes.io/name: ganesha
+  annotations:
+    # No backend-protocol override: the pod only ever speaks plain HTTP — there is no
+    # certificate inside it to re-encrypt to. This ingress is where TLS is terminated
+    # (cert-manager annotation below, or your own equivalent).
+    #
+    # Record attachments (15 MB cap) and the smart-upload path are the largest request
+    # bodies; vehicle/person photos are capped smaller. 20m leaves headroom over the
+    # 15 MB ceiling.
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [ganesha.example.com]
+      secretName: ganesha-tls
+  rules:
+    - host: ganesha.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ganesha
+                port:
+                  name: http

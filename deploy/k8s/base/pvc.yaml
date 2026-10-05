@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ganesha-data
+  labels:
+    app.kubernetes.io/name: ganesha
+spec:
+  # ReadWriteOnce on purpose: DATA_DIR holds synced Microsoft 365 profile photos,
+  # uploaded vehicle photos, record/card attachments and pending smart-upload files as
+  # plain files on disk, with exactly one pod writing them. See deployment.yaml's
+  # comment on replicas before changing this (overlays/ha switches it to ReadWriteMany).
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Gi
+  # storageClassName: ""   # uncomment and set if the cluster has no usable default

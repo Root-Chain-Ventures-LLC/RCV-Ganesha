@@ -1,0 +1,8 @@
+# install.sh writes a real .env with the generated secret key and database password.
+# Never commit it.
+.env
+
+# Local data and backups.
+data/
+*.sql
+*.dump
