@@ -8,6 +8,20 @@ Release notes for the published Ganesha images. The format follows
 
 _Nothing yet._
 
+## [0.1.1] - 2026-10-05
+
+`ghcr.io/root-chain-ventures-llc/ganesha:0.1.1`
+
+### Changed
+- The word "compliance" is gone from the screens and emails: the default sign-in tagline is now
+  "Vehicles & drivers", the report is named "Document status", and the page subtitles and the
+  email footer are reworded. API paths and the CSV file name are unchanged. A tagline saved in
+  Settings > Branding is not touched.
+
+Upgrade: set `GANESHA_VERSION=0.1.1` in `.env` (or pull this repository) and run
+`docker compose pull && docker compose up -d`; on Kubernetes change the image tag in
+`base/deployment.yaml` and re-apply. No migration.
+
 ## [0.1.0] - 2026-10-05
 
 First public release. `ghcr.io/root-chain-ventures-llc/ganesha:0.1.0`
