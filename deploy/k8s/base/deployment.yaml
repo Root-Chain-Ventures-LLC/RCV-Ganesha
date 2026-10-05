@@ -38,7 +38,7 @@ spec:
         - name: ganesha
           # Pinned to a published release; to upgrade, change the tag and re-apply. Releases
           # are listed at https://github.com/Root-Chain-Ventures-LLC/RCV-Ganesha/releases
-          image: ghcr.io/root-chain-ventures-llc/ganesha:0.1.3
+          image: ghcr.io/root-chain-ventures-llc/ganesha:0.1.2
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

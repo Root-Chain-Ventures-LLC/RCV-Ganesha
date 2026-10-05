@@ -101,7 +101,7 @@ Edit these in `base/` (`overlays/ha` inherits them):
 | `base/configmap.yaml` | `BASE_URL`: the public `https://` URL. It controls the session cookie's `Secure` flag, HSTS and the CSP's `upgrade-insecure-requests` directive, and the same-origin check on writes; it does **not** make the app itself speak TLS. It must be exactly what people type in the browser. |
 | `base/ingress.yaml` | the host (twice: `spec.tls[0].hosts` and `spec.rules[0].host`), `ingressClassName`, and how the certificate is issued |
 | `base/pvc.yaml` | `storage`, and `storageClassName` if the cluster has no usable default (`overlays/ha` additionally needs that class to support `ReadWriteMany`) |
-| `base/deployment.yaml` | the image tag, pinned to `0.1.3` here; change it to upgrade |
+| `base/deployment.yaml` | the image tag, pinned to `0.1.2` here; change it to upgrade |
 
 Then create the Secret out of band. `base/secret.example.yaml` is a template with no values
 in it and is deliberately **not** in any `kustomization.yaml`, so no credential can reach a
@@ -170,7 +170,7 @@ open until that finishes. The probes are identical per pod in both shapes.
 The image is public and needs no login:
 
 ```bash
-docker pull ghcr.io/root-chain-ventures-llc/ganesha:0.1.3
+docker pull ghcr.io/root-chain-ventures-llc/ganesha:0.1.2
 ```
 
 If you mirror it into a registry of your own that does need credentials, create the secret
@@ -199,8 +199,8 @@ as root against the same PVC:
 
 ```bash
 kubectl -n ganesha run ganesha-chown --rm -it --restart=Never \
-  --image=ghcr.io/root-chain-ventures-llc/ganesha:0.1.3 \
-  --overrides='{"spec":{"securityContext":{"runAsUser":0},"containers":[{"name":"ganesha-chown","image":"ghcr.io/root-chain-ventures-llc/ganesha:0.1.3","command":["chown","-R","1000:1000","/data"],"volumeMounts":[{"name":"data","mountPath":"/data"}]}],"volumes":[{"name":"data","persistentVolumeClaim":{"claimName":"ganesha-data"}}]}}'
+  --image=ghcr.io/root-chain-ventures-llc/ganesha:0.1.2 \
+  --overrides='{"spec":{"securityContext":{"runAsUser":0},"containers":[{"name":"ganesha-chown","image":"ghcr.io/root-chain-ventures-llc/ganesha:0.1.2","command":["chown","-R","1000:1000","/data"],"volumeMounts":[{"name":"data","mountPath":"/data"}]}],"volumes":[{"name":"data","persistentVolumeClaim":{"claimName":"ganesha-data"}}]}}'
 ```
 
 ## Checking the manifests without a cluster

@@ -8,48 +8,6 @@ Release notes for the published Ganesha images. The format follows
 
 _Nothing yet._
 
-## [0.1.3] - 2026-10-05
-
-`ghcr.io/root-chain-ventures-llc/ganesha:0.1.3`
-
-### Security
-
-- **Files are now encrypted at rest.** Every file the server stores under `DATA_DIR` - record and
-  card attachments and their kept originals, pending Smart-upload files, vehicle photos, synced
-  profile photos and branding images - is AES-256-GCM encrypted with a file key derived
-  (HKDF-SHA256) from `GANESHA_SECRET_KEY`, bound to the file's path, and written atomically. There
-  is no setting to turn it off. Files already on the volume are converted by a background pass on
-  the first start after upgrading (one replica at a time, counts-only log line); reads accept both
-  forms meanwhile. `rotate-secrets` now also re-encrypts the whole data volume to the new key and
-  exits non-zero if any file could not be decrypted. A backup of the data volume is unreadable
-  without the key, so keep the key separate from backups. The Postgres data directory is not
-  covered: run the database on encrypted storage. Files are decrypted in memory when served (the
-  largest upload is 15 MB). The README, `deploy/README.md` and `deploy/k8s/README.md` describe
-  backup, restore and rotation. Also corrects `deploy/README.md`, which said sessions have no idle
-  timeout: they have a 12 h sliding idle timeout and a 7-day absolute lifetime.
-
-- **Card and document numbers are now encrypted in the database.** The printed number of a card or
-  document (fuel and ferry card numbers, policy and registration numbers, transponder ids) and the
-  copy of it a Smart upload keeps for review are AES-256-GCM encrypted with a key from
-  `GANESHA_SECRET_KEY`, bound to their row; a database dump, backup or volume snapshot no longer
-  reveals them. It is always on and needs nothing from the operator. Nothing changes on screen:
-  display, supervisor masking, search, Smart-upload matching, reports and CSV behave as before
-  (search decrypts and filters in the app; an HMAC blind index keeps exact matches fast).
-  The audit log now records only that a number changed and its last few characters, and the
-  first start after upgrading scrubs full numbers from older audit entries. Existing rows are
-  converted by a background pass (counts-only log line, one replica at a time); `rotate-secrets`
-  re-encrypts them to the new key and rebuilds the index. Names, locations, plates, VINs and other
-  rows are not encrypted by Ganesha, so use an encrypted volume for the database; losing
-  `GANESHA_SECRET_KEY` makes the numbers unrecoverable. Backups taken before upgrading still hold
-  the numbers in plaintext.
-
-Upgrade: set `GANESHA_VERSION=0.1.3` in `.env` (or pull this repository) and run
-`docker compose pull && docker compose up -d`; on Kubernetes change the image tag in
-`base/deployment.yaml` and re-apply. One database migration runs on start, and existing files
-and numbers are encrypted in the background. Take a backup first: after this upgrade the data
-volume cannot be read by an older version. Keep `GANESHA_SECRET_KEY` safe and separate from
-backups.
-
 ## [0.1.2] - 2026-10-05
 
 `ghcr.io/root-chain-ventures-llc/ganesha:0.1.2`
