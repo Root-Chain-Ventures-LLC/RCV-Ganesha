@@ -8,6 +8,21 @@ Release notes for the published Ganesha images. The format follows
 
 _Nothing yet._
 
+## [0.1.2] - 2026-10-05
+
+`ghcr.io/root-chain-ventures-llc/ganesha:0.1.2`
+
+### Changed
+- **Settings is organised into sections** (My account, Branding, People & sign-in, Fleet & Geotab,
+  Documents, Notifications, System) with a left rail on wide screens and a section picker on
+  phones. The section is in the URL (`/settings?section=fleet`), so it can be linked and the browser
+  back button works. Unsaved edits survive switching sections. Non-admins still see only their own
+  account and build info.
+
+Upgrade: set `GANESHA_VERSION=0.1.2` in `.env` (or pull this repository) and run
+`docker compose pull && docker compose up -d`; on Kubernetes change the image tag in
+`base/deployment.yaml` and re-apply. No migration.
+
 ## [0.1.1] - 2026-10-05
 
 `ghcr.io/root-chain-ventures-llc/ganesha:0.1.1`
