@@ -8,9 +8,9 @@ Release notes for the published Ganesha images. The format follows
 
 _Nothing yet._
 
-## [0.1.3] - 2026-10-05
+## [0.1.4] - 2026-10-05
 
-`ghcr.io/root-chain-ventures-llc/ganesha:0.1.3`
+`ghcr.io/root-chain-ventures-llc/ganesha:0.1.4`
 
 ### Security
 
@@ -43,7 +43,7 @@ _Nothing yet._
   `GANESHA_SECRET_KEY` makes the numbers unrecoverable. Backups taken before upgrading still hold
   the numbers in plaintext.
 
-Upgrade: set `GANESHA_VERSION=0.1.3` in `.env` (or pull this repository) and run
+Upgrade: set `GANESHA_VERSION=0.1.4` in `.env` (or pull this repository) and run
 `docker compose pull && docker compose up -d`; on Kubernetes change the image tag in
 `base/deployment.yaml` and re-apply. One database migration runs on start, and existing files
 and numbers are encrypted in the background. Take a backup first: after this upgrade the data
