@@ -27,7 +27,7 @@ services:
     restart: unless-stopped
 
   app:
-    image: ghcr.io/root-chain-ventures-llc/ganesha:${GANESHA_VERSION:-0.1.1}
+    image: ghcr.io/root-chain-ventures-llc/ganesha:${GANESHA_VERSION:-0.1.2}
     container_name: ganesha-app
     depends_on:
       db:
