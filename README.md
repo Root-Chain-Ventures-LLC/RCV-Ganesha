@@ -102,7 +102,7 @@ curl http://127.0.0.1:8080/api/health
 
 This starts Postgres (`db`, published on loopback only, volume `ganesha-pg`) and the app
 (`app`, port 8080, volume `ganesha-data` for uploads, photos and attachments). Pin a
-release with `GANESHA_VERSION=0.1.2` in `.env` (the default is the version this
+release with `GANESHA_VERSION=0.1.3` in `.env` (the default is the version this
 `docker-compose.yml` shipped with).
 
 Behind a reverse proxy on the same host set `GANESHA_BIND=127.0.0.1` so the app is reachable
@@ -135,7 +135,7 @@ kubectl -n ganesha create secret generic ganesha \
 kubectl apply -k deploy/k8s
 ```
 
-The image tag in the manifests is pinned to `0.1.2`. See
+The image tag in the manifests is pinned to `0.1.3`. See
 [`deploy/k8s/README.md`](deploy/k8s/README.md) for the full walkthrough, what the HA
 overlay changes and why, upgrading, and troubleshooting.
 
@@ -160,7 +160,7 @@ database. Those credentials are **never** environment variables.
 | `TRUST_PROXY` | no | `false` | Whether to trust `X-Forwarded-*`. A hop count (`1` = one proxy; `2` behind a cloud load balancer plus a proxy), a comma-separated list of proxy IPs or CIDRs (strongest), or `true` (every hop; a client reaching the app directly can then spoof its IP). Leave `false` with no proxy. |
 | `SETUP_TOKEN` | no | none | When set, creating the first administrator also needs this value. |
 | `GANESHA_BIND`, `GANESHA_PORT` | no | `0.0.0.0`, `8080` | Compose only: host interface and port that publish the app. Use `GANESHA_BIND=127.0.0.1` behind a proxy on the same host. |
-| `GANESHA_VERSION` | no | `0.1.2` | Compose only: the image tag to run. |
+| `GANESHA_VERSION` | no | `0.1.3` | Compose only: the image tag to run. |
 | `GANESHA_DB_PORT` | no | `5434` | Compose only: loopback port for the bundled Postgres. |
 | `GANESHA_MEM_LIMIT`, `GANESHA_PIDS_LIMIT` | no | `1g`, `256` | Compose only: memory and process limits for the app container. |
 | `ALLOW_PRIVATE_OUTBOUND` | no | `false` | Loopback, link-local and cloud-metadata destinations are always refused for Document AI, the OIDC issuer, SMTP and the Teams webhook. Private ranges (RFC 1918, CGNAT, unique-local) are refused too unless this is `true`; an on-premises model, a LAN mail relay or an internal identity provider needs it. |
@@ -222,17 +222,27 @@ digest** schedules the digest. Reminders never contain a document or card number
 
 ## Security notes
 
-- **Encrypted at rest by the application:** every credential saved in Settings (directory
-  and SSO client secrets, the Geotab password, the SMTP password, Document AI keys, the
-  Teams webhook) is encrypted with AES-256-GCM using `GANESHA_SECRET_KEY`; a database dump
-  holds ciphertext only. Passwords are bcrypt hashes. This protects a leaked backup, not a
-  compromised running process.
-- **Not encrypted by the application:** record and card attachments, pending uploads and
-  vehicle photos (files under the data volume), and the identifiers in the database (VINs,
-  plates, names, emails, and the numbers of any record type set to `keep`). Put the data
-  volume and the Postgres volume on **encrypted storage** and encrypt your backups.
-- **Back up `GANESHA_SECRET_KEY`** separately from, or alongside, your database backups. If
-  it is lost, every stored credential is unrecoverable and must be re-entered.
+- **Encrypted at rest by the application** (AES-256-GCM, keys derived from `GANESHA_SECRET_KEY`,
+  always on):
+  - every credential saved in Settings (directory and SSO client secrets, the Geotab password,
+    the SMTP password, Document AI keys, the Teams webhook);
+  - every file in the data volume (record and card attachments, pending uploads, vehicle and
+    profile photos, branding images), each bound to its own path;
+  - the printed number of every card and document (fuel and ferry card numbers, policy and
+    registration numbers) and the copy a Smart upload keeps for review.
+  Passwords are bcrypt hashes. This protects a leaked backup or volume copy, not a compromised
+  running process: files and numbers are decrypted in the app's memory when used.
+- **Not encrypted by the application:** the other rows in the database (names, emails, VINs,
+  plates, last reported vehicle locations, free-text notes and labels). Put the Postgres volume on
+  **encrypted storage** and encrypt your backups. Ganesha runs the same with or without it, and it
+  can be added later by moving the database to encrypted storage; no reinstall is needed.
+- **Upgrading from 0.1.2 or earlier:** existing files and numbers are encrypted in the background
+  on the first start. Backups taken before the upgrade still hold them in plain form, and an older
+  version cannot read the data volume afterwards.
+- **Back up `GANESHA_SECRET_KEY`** separately from your database and volume backups. If it is
+  lost, every stored credential, file and card number is unrecoverable. To change the key, set the
+  old one as `GANESHA_SECRET_KEY_PREVIOUS` and run the `rotate-secrets` command with the data
+  volume mounted (see `deploy/k8s/README.md`).
 - **Reverse proxy and TLS:** Ganesha speaks plain HTTP. Terminate TLS in front of it, set
   `BASE_URL` to the exact `https://` address, and set `TRUST_PROXY` so client IPs (rate
   limits, lockout, audit) are real. On Compose behind a proxy on the same host, set

@@ -106,7 +106,7 @@ if [ "$BASE_URL" = "https://ganesha.example.com" ]; then
   warn "Edit .env and re-run ./install.sh once you know the real hostname."
 fi
 
-say "Pulling ghcr.io/root-chain-ventures-llc/ganesha:${GANESHA_VERSION:-0.1.2}"
+say "Pulling ghcr.io/root-chain-ventures-llc/ganesha:${GANESHA_VERSION:-0.1.3}"
 docker compose pull
 
 say "Starting"
