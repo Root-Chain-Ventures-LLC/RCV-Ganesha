@@ -102,7 +102,7 @@ curl http://127.0.0.1:8080/api/health
 
 This starts Postgres (`db`, published on loopback only, volume `ganesha-pg`) and the app
 (`app`, port 8080, volume `ganesha-data` for uploads, photos and attachments). Pin a
-release with `GANESHA_VERSION=0.1.4` in `.env` (the default is the version this
+release with `GANESHA_VERSION=0.1.5` in `.env` (the default is the version this
 `docker-compose.yml` shipped with).
 
 Behind a reverse proxy on the same host set `GANESHA_BIND=127.0.0.1` so the app is reachable
@@ -135,7 +135,7 @@ kubectl -n ganesha create secret generic ganesha \
 kubectl apply -k deploy/k8s
 ```
 
-The image tag in the manifests is pinned to `0.1.4`. See
+The image tag in the manifests is pinned to `0.1.5`. See
 [`deploy/k8s/README.md`](deploy/k8s/README.md) for the full walkthrough, what the HA
 overlay changes and why, upgrading, and troubleshooting.
 
@@ -160,7 +160,7 @@ database. Those credentials are **never** environment variables.
 | `TRUST_PROXY` | no | `false` | Whether to trust `X-Forwarded-*`. A hop count (`1` = one proxy; `2` behind a cloud load balancer plus a proxy), a comma-separated list of proxy IPs or CIDRs (strongest), or `true` (every hop; a client reaching the app directly can then spoof its IP). Leave `false` with no proxy. |
 | `SETUP_TOKEN` | no | none | When set, creating the first administrator also needs this value. |
 | `GANESHA_BIND`, `GANESHA_PORT` | no | `0.0.0.0`, `8080` | Compose only: host interface and port that publish the app. Use `GANESHA_BIND=127.0.0.1` behind a proxy on the same host. |
-| `GANESHA_VERSION` | no | `0.1.4` | Compose only: the image tag to run. |
+| `GANESHA_VERSION` | no | `0.1.5` | Compose only: the image tag to run. |
 | `GANESHA_DB_PORT` | no | `5434` | Compose only: loopback port for the bundled Postgres. |
 | `GANESHA_MEM_LIMIT`, `GANESHA_PIDS_LIMIT` | no | `1g`, `256` | Compose only: memory and process limits for the app container. |
 | `ALLOW_PRIVATE_OUTBOUND` | no | `false` | Loopback, link-local and cloud-metadata destinations are always refused for Document AI, the OIDC issuer, SMTP and the Teams webhook. Private ranges (RFC 1918, CGNAT, unique-local) are refused too unless this is `true`; an on-premises model, a LAN mail relay or an internal identity provider needs it. |
