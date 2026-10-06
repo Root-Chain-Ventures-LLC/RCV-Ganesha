@@ -8,6 +8,58 @@ Release notes for the published Ganesha images. The format follows
 
 _Nothing yet._
 
+## [0.1.5] - 2026-10-06
+
+`ghcr.io/root-chain-ventures-llc/ganesha:0.1.5`
+
+### Changed
+
+- **Forms and buttons now use the design kit's interaction components** (pass A of two; the data
+  surfaces - skeletons, tables, lightbox, sync progress - come next). Every async button (Sign in,
+  every Settings Save / Test / Send test / Sync now / Preview / Import, the record, card, vehicle,
+  person and licence sheets, report download, and the confirm dialogs for unlink, end assignment,
+  revoke, unassign and delete) shows a spinner while it works, a tick on success and a shake with a
+  red outline on failure, never changes width, and keeps its label, variant, size and Enter-to-submit.
+  Confirm dialogs stay open while they work and close on success. Fields with a knowable rule (email,
+  URL, port, interval, hour, hex colour, VIN, plate, year, expiry after issue, Teams webhook) show
+  their verdict inline after the first blur and keep it up to date as you type; typing is never
+  blocked and the server's own errors still appear as before. Setup and Add person show a password
+  strength meter that agrees with the server's rule (12 characters, at most 72 bytes) and a show/hide
+  toggle (Sign in has the toggle too). First-run setup is now a three-step wizard (Organisation,
+  Administrator, Done) that makes the same single `POST /api/setup` call, then saves the app and
+  organisation names to Branding and offers links into Settings. The SSO allowed domains and group
+  lists, the digest recipients and the alert extra recipients are chip fields (paste a list, Enter
+  adds, a value typed but not confirmed is kept when you leave the field); what is saved is the same
+  array as before. The sign-in page's message is a dismissible, foldable notice, dismissed for the
+  browser session only. One motion scale (`--motion-fast` 150 ms, `--motion-base` 220 ms,
+  `--motion-slow` 260 ms, `--ease-out`) now drives button press feedback and the kit components, all
+  of it off under `prefers-reduced-motion`. Single-line fields are 44 px tall on a phone. No API or
+  server change.
+- **Data surfaces use the design kit's interaction components** (pass B). Dashboard, Vehicles,
+  People, Records, Reports, Audit and the vehicle and person pages show a skeleton shaped like the
+  page on first load and hand over to the content without a jump; a search, a filter or a refresh
+  keeps what is already on screen. The Dashboard's counts, the bell badge and the Geotab device
+  readings roll and flash when a refresh changes them (the Dashboard now refreshes on focus and every
+  two minutes), coloured by whether more is good or bad. Sync now (Directory, Geotab) and Smart
+  upload show step lists that report only what is really known: the server answers once, so they show
+  running, then done with the counts or failed with the reason. The Audit page is a sortable,
+  paginated table at desktop width (cards on a phone) with a "N new entries" pill when newer entries
+  arrive while you are looking further down. Photos and image attachments open in a lightbox and
+  load with a soft focus; vehicle and person photos keep their initials or icon fallback. On a phone
+  the list searches are an expanding search field and the list headers stay at the top with their
+  main action; the Records views are keyboard-navigable tabs; long notes, licence verification
+  detail and audit JSON fold behind "Show more". A field's "required" message now waits for you to
+  use that field (or submit), so a form that focuses its first field for you no longer scolds it;
+  the sign-in SSO link is 44 px tall on a phone, and the form fields' spacing and padding sit on the
+  spacing scale. Every control is now at least 44 px tall on a phone (issue #81): the top-bar menu and
+  Smart upload buttons, the drawer's navigation items, switches, checkboxes and radios, chip and tag
+  removers, the search clear button, the back links and map links on the detail pages, the Audit
+  rows' subject links; desktop sizes are unchanged. No API or server change.
+
+Upgrade: set `GANESHA_VERSION=0.1.5` in `.env` (or pull this repository) and run
+`docker compose pull && docker compose up -d`; on Kubernetes change the image tag in
+`base/deployment.yaml` and re-apply. No migration.
+
 ## [0.1.4] - 2026-10-05
 
 `ghcr.io/root-chain-ventures-llc/ganesha:0.1.4`
