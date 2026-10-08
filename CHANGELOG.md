@@ -8,6 +8,36 @@ Release notes for the published Ganesha images. The format follows
 
 _Nothing yet._
 
+## [0.1.6] - 2026-10-08
+
+`ghcr.io/root-chain-ventures-llc/ganesha:0.1.6`
+
+### Security
+
+- **Ganesha never keeps driver's licences or DOT medical cards: every upload is screened locally
+  before storage.** One shared screen runs in memory on the received file, before anything is written to
+  disk or sent to any AI provider, on every content upload path: Smart upload, record attachments, card
+  images and asset creation, and vehicle photos (not branding images, and not Verify licence). It looks
+  for an AAMVA barcode and licence wording and, new, for DOT medical certificate wording (FMCSA Medical
+  Examiner's Certificate), on every page of a PDF (it used to read two). A hit is refused with HTTP 422
+  and a stable code (`licence_not_stored`, `medical_card_not_stored`, or `unscreenable` when the file
+  could not be read), a plain-language message, and one audit entry holding only the kind and the route.
+  Licence-ish fields alone do not override a record type the uploader explicitly chose. Smart upload
+  screens before writing (it used to write, then destroy) and still sends the person to Verify licence;
+  its own pre-AI check stays as a second layer and now also destroys a medical card. New: a background
+  re-scan of every stored attachment, Smart-upload file and vehicle photo (start-up, then every 24 h;
+  migration 22 adds `screened_version`) that deletes and audits any licence or medical card found, never
+  on an error; a start-up sweep for files on the data volume that no database row references (older than
+  an hour); the Document AI prompt no longer asks for a licence number. This is OCR and a barcode
+  decoder, not a guarantee: a deliberately unreadable photo can still pass. Backups taken earlier still
+  contain whatever was stored then.
+
+Upgrade: set `GANESHA_VERSION=0.1.6` in `.env` (or pull this repository) and run
+`docker compose pull && docker compose up -d`; on Kubernetes change the image tag in
+`base/deployment.yaml` and re-apply. One database migration runs on start; the first start
+re-scans stored files in the background and removes files no record refers to, so take a
+backup of the data volume first.
+
 ## [0.1.5] - 2026-10-06
 
 `ghcr.io/root-chain-ventures-llc/ganesha:0.1.5`
