@@ -145,36 +145,13 @@ jobs:
             check latest
           fi
 
-      - name: Assemble the release notes and install artifacts
+      - name: Assemble the install artifacts
         env:
           VERSION: ${{ steps.in.outputs.version }}
-          DIGEST: ${{ steps.in.outputs.digest }}
         run: |
           set -euo pipefail
-          # The CHANGELOG in this repo is the public record; its "## [<version>]" section is
-          # the release note. A missing section is a warning, not a failure — the image is
-          # already verified and a release with thin notes beats no release.
-          awk -v v="## [$VERSION]" 'index($0, v)==1 {found=1; next} found && /^## \[/ {exit} found' CHANGELOG.md \
-            | sed -E '/^\[[^]]+\]: https?:/d' > release-notes.md || true
-          if [ ! -s release-notes.md ]; then
-            echo "::warning::CHANGELOG.md has no '## [$VERSION]' section; using a stock note"
-            echo "Ganesha $VERSION." > release-notes.md
-          fi
-          {
-            echo
-            echo '## Install'
-            echo
-            echo 'Docker Compose: clone this repository and run `./install.sh`, or pin this version with'
-            echo "\`GANESHA_VERSION=$VERSION\` in \`.env\`. Kubernetes: apply \`deploy/k8s/\` (attached below as a tarball)."
-            echo
-            echo '## Image'
-            echo
-            echo '```'
-            echo "docker pull $PUBLIC_IMAGE:$VERSION"
-            echo '```'
-            echo
-            echo "Digest: \`$DIGEST\` — verified pullable without credentials by this workflow run."
-          } >> release-notes.md
+          # Public releases carry no notes: the title is the version and the assets are the
+          # install artifacts.
           mkdir -p dist
           cp docker-compose.yml install.sh .env.example dist/
           tar -czf "dist/deploy-k8s-$VERSION.tar.gz" deploy/k8s
@@ -193,13 +170,13 @@ jobs:
             flags+=(--prerelease)
           fi
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --title "Ganesha $VERSION" --notes-file release-notes.md ${flags[@]+"${flags[@]}"}
+            gh release edit "$TAG" --title "Ganesha $VERSION" --notes "" ${flags[@]+"${flags[@]}"}
             gh release upload "$TAG" dist/* --clobber
           else
             gh release create "$TAG" dist/* \
               --target "$GITHUB_SHA" \
               --title "Ganesha $VERSION" \
-              --notes-file release-notes.md \
+              --notes "" \
               ${flags[@]+"${flags[@]}"}
           fi
           echo "Released $TAG: $(gh release view "$TAG" --json url -q .url)"
