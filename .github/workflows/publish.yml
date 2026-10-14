@@ -4,7 +4,8 @@ name: publish
 # which pushes it to a private staging name and dispatches `publish-release` here with the
 # version and the exact digest. This workflow copies that digest to the public name — so
 # the package is created by and linked to THIS repository — cuts the Release with the
-# install artifacts, and refuses to succeed unless the image can be pulled anonymously.
+# install artifacts, refuses to succeed unless the image can be pulled anonymously, and then
+# removes every older release and tag so only the current one is public.
 #
 # Secrets:
 #   GHCR_READ_TOKEN  — can read the private staging package. GITHUB_TOKEN cannot: a package
@@ -180,3 +181,32 @@ jobs:
               ${flags[@]+"${flags[@]}"}
           fi
           echo "Released $TAG: $(gh release view "$TAG" --json url -q .url)"
+
+      # Only the current release stays public: once a stable release is out, delete every other
+      # release and tag in this repository. Skipped for a prerelease, and skipped when a newer
+      # version tag already exists (a backfill of an old version must never remove the newest).
+      - name: Remove older releases and tags
+        if: steps.in.outputs.prerelease == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.in.outputs.tag }}
+        run: |
+          set -euo pipefail
+          newest=$(gh api --paginate "repos/$GITHUB_REPOSITORY/tags?per_page=100" --jq '.[].name' \
+            | { grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true; } | sort -V | tail -n 1)
+          if [ "$newest" != "$TAG" ]; then
+            echo "::warning::$TAG is not the newest version tag (${newest:-none}); leaving older releases in place"
+            exit 0
+          fi
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | "\(.id) \(.tag_name)"' \
+            | while read -r id tag; do
+                [ "$tag" = "$TAG" ] && continue
+                gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"
+                echo "deleted release $tag"
+              done
+          gh api --paginate "repos/$GITHUB_REPOSITORY/tags?per_page=100" --jq '.[].name' \
+            | while read -r tag; do
+                [ "$tag" = "$TAG" ] && continue
+                gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$tag"
+                echo "deleted tag $tag"
+              done
