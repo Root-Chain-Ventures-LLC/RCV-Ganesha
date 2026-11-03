@@ -9,10 +9,19 @@ metadata:
     # certificate inside it to re-encrypt to. This ingress is where TLS is terminated
     # (cert-manager annotation below, or your own equivalent).
     #
-    # Record attachments (15 MB cap) and the smart-upload path are the largest request
-    # bodies; vehicle/person photos are capped smaller. 20m leaves headroom over the
-    # 15 MB ceiling.
-    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+    # Request body size. The largest upload is an incident report file: 25 MB by default, and an
+    # administrator may raise it to 1024 MB (Settings > Documents > Incident reports). 1100m is
+    # that 1024 MB plus multipart overhead. Record attachments (15 MB), smart uploads and photos
+    # are smaller. An upload over this limit gets an nginx 413 before Ganesha sees it, so lower it
+    # only together with the incident file setting.
+    nginx.ingress.kubernetes.io/proxy-body-size: "1100m"
+    # Stream uploads to the pod instead of spooling them on the ingress first: Ganesha writes the
+    # file straight to its encrypted data volume.
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    # Idle limits between two reads or writes (not a limit on the whole upload), so a large file
+    # on a slow link is not cut off. Ganesha itself drops an upload that sends nothing for 60 s.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     # cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: nginx

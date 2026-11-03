@@ -168,6 +168,9 @@ database. Those credentials are **never** environment variables.
 | `GANESHA_DB_PORT` | no | `5434` | Compose only: loopback port for the bundled Postgres. |
 | `GANESHA_MEM_LIMIT`, `GANESHA_PIDS_LIMIT` | no | `1g`, `256` | Compose only: memory and process limits for the app container. |
 | `ALLOW_PRIVATE_OUTBOUND` | no | `false` | Loopback, link-local and cloud-metadata destinations are always refused for Document AI, the OIDC issuer, SMTP and the Teams webhook. Private ranges (RFC 1918, CGNAT, unique-local) are refused too unless this is `true`; an on-premises model, a LAN mail relay or an internal identity provider needs it. |
+| `INCIDENT_UPLOAD_CONCURRENCY`, `INCIDENT_UPLOAD_PER_USER` | no | `4`, `2` | Incident report files uploading at once, in total and per person; beyond that an upload is refused at once (503 with `Retry-After`). Per app instance. |
+| `INCIDENT_MIN_FREE_MB` | no | `1024` | An incident upload is refused (507) when it would leave the data volume with less than this free. |
+| `INCIDENT_UPLOAD_STALL_MS` | no | `60000` | An incident upload that sends nothing for this long is cancelled (408) and its partial file removed. A slow upload that keeps sending is never cut off. |
 | `UPLOAD_RATE_PER_HOUR` | no | `30` | Uploads per person per hour across every upload route. |
 | `MAX_IMAGE_MEGAPIXELS` | no | `40` | Larger images are refused before decoding. PDFs render at most 10 pages. |
 | `IMAGE_DECODE_TIMEOUT_MS` | no | `20000` | Stop waiting for a stuck image or PDF decode. |
@@ -266,6 +269,14 @@ digest** schedules the digest. Reminders never contain a document or card number
   limits, lockout, audit) are real. On Compose behind a proxy on the same host, set
   `GANESHA_BIND=127.0.0.1`. The app sends HSTS, a strict CSP and clickjacking protection on
   https and cannot be framed.
+- **Proxy upload limit:** incident report files are 25 MB by default and may be raised to
+  1024 MB (images and PDFs stay at 100 MB). A proxy in front of Ganesha (nginx
+  `client_max_body_size`, Caddy `request_body max_size`, an ingress `proxy-body-size`, a WAF)
+  must allow at least that size plus multipart overhead (1100 MB for the 1024 MB ceiling), or
+  lower the setting to fit. For large files it should also stream the body instead of buffering
+  it (nginx `proxy_request_buffering off`) and allow an idle timeout of minutes. The bundled
+  Kubernetes ingress does all three. The data volume needs room for the files: an upload that
+  would leave less than 1 GB free is refused.
 - **Driver's licences are verified, not stored.** With the default `drivers_license` policy
   (`verify_discard`), the photos are checked in memory by the app (no remote provider) and
   dropped. No licence image, number, date of birth, address, barcode text or OCR text is
